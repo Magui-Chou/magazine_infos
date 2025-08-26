@@ -1,203 +1,196 @@
 import 'package:flutter/material.dart';
+import 'database/database_manager.dart';
+import 'modele/redacteur.dart';
 
 void main() {
   runApp(const MonAppli());
 }
 
-// Classe principale
 class MonAppli extends StatelessWidget {
   const MonAppli({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Magazine Infos',
+      title: 'Gestion des Rédacteurs',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.orange,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(primarySwatch: Colors.orange),
       home: const PageAccueil(),
     );
   }
 }
 
-// PageAccueil
-class PageAccueil extends StatelessWidget {
+class PageAccueil extends StatefulWidget {
   const PageAccueil({super.key});
+
+  @override
+  State<PageAccueil> createState() => _PageAccueilState();
+}
+
+class _PageAccueilState extends State<PageAccueil> {
+  final TextEditingController nomController = TextEditingController();
+  final TextEditingController prenomController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+
+  List<Redacteur> redacteurs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRedacteurs();
+  }
+
+  // Charger tous les rédacteurs
+  Future<void> _loadRedacteurs() async {
+    final data = await DatabaseManager.instance.getRedacteurs();
+    setState(() {
+      redacteurs = data;
+    });
+  }
+
+  // Ajouter un rédacteur
+  Future<void> _addRedacteur() async {
+    if (nomController.text.isEmpty ||
+        prenomController.text.isEmpty ||
+        emailController.text.isEmpty) return;
+
+    final newRedacteur = Redacteur(
+      nom: nomController.text,
+      prenom: prenomController.text,
+      email: emailController.text,
+    );
+
+    await DatabaseManager.instance.insertRedacteur(newRedacteur);
+    nomController.clear();
+    prenomController.clear();
+    emailController.clear();
+
+    _loadRedacteurs();
+  }
+
+  // Supprimer un rédacteur
+  Future<void> _deleteRedacteur(int id) async {
+    await DatabaseManager.instance.deleteRedacteur(id);
+    _loadRedacteurs();
+  }
+
+  // Modifier un rédacteur
+  Future<void> _editRedacteur(Redacteur redacteur) async {
+    final nomEdit = TextEditingController(text: redacteur.nom);
+    final prenomEdit = TextEditingController(text: redacteur.prenom);
+    final emailEdit = TextEditingController(text: redacteur.email);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Modifier le rédacteur"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nomEdit, decoration: const InputDecoration(labelText: "Nom")),
+            TextField(controller: prenomEdit, decoration: const InputDecoration(labelText: "Prénom")),
+            TextField(controller: emailEdit, decoration: const InputDecoration(labelText: "Email")),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Annuler")),
+          ElevatedButton(
+            onPressed: () async {
+              final updated = Redacteur(
+                id: redacteur.id,
+                nom: nomEdit.text,
+                prenom: prenomEdit.text,
+                email: emailEdit.text,
+              );
+              await DatabaseManager.instance.updateRedacteur(updated);
+              Navigator.pop(context);
+              _loadRedacteurs();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text("Enregistrer"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Magazine Infos'),
+        title: const Text("Gestion des Rédacteurs"),
         centerTitle: true,
         backgroundColor: Colors.orange,
         leading: IconButton(
           icon: const Icon(Icons.menu),
-          onPressed: () {},
+          onPressed: () {
+            print("Menu cliqué");
+          },
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () {},
+            onPressed: () {
+              print("Recherche cliquée");
+            },
           ),
         ],
       ),
-
-      // Corps de la page
-      body: SingleChildScrollView(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const [
-            // Image d'en-tête
-            Image(
-              image: AssetImage('assets/images/magazineinfo.png'),
-              height: 400,
-              width: double.infinity,
-              fit: BoxFit.fitWidth, 
+          children: [
+            // Formulaire d'ajout
+            TextField(
+              controller: nomController,
+              decoration: const InputDecoration(labelText: "Nom"),
             ),
+            TextField(
+              controller: prenomController,
+              decoration: const InputDecoration(labelText: "Prénom"),
+            ),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: "Email"),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _addRedacteur,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text("Ajouter"),
+            ),
+            const SizedBox(height: 20),
 
-            PartieTitre(),
-            PartieTexte(),
-            PartieIcone(),
-            PartieRubrique(),
+            // Liste des rédacteurs
+            Expanded(
+              child: ListView.builder(
+                itemCount: redacteurs.length,
+                itemBuilder: (context, index) {
+                  final r = redacteurs[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text("${r.prenom} ${r.nom}"),
+                      subtitle: Text(r.email),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            onPressed: () => _editRedacteur(r),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteRedacteur(r.id!),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          print('Tu as cliqué dessus');
-        },
-        backgroundColor: Colors.orange,
-        child: const Text('Click'),
-      ),
-    );
-  }
-}
-
-
-// Classe PartieTitre
-
-class PartieTitre extends StatelessWidget {
-  const PartieTitre({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Bienvenue à Magazine Infos",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 6),
-          Text(
-            "Votre magazine numérique, votre source d'inspiration",
-            style: TextStyle(fontSize: 14, color: Colors.black54),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
-// Classe PartieTexte
-
-class PartieTexte extends StatelessWidget {
-  const PartieTexte({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: const Text(
-        "Magazine Infos est un magazine numérique qui propose actualités, interviews et tendances. "
-        "Restez informé grâce à des contenus variés et accessibles partout.",
-        textAlign: TextAlign.justify,
-        style: TextStyle(fontSize: 16),
-      ),
-    );
-  }
-}
-
-
-// Classe PartieIcone
-class PartieIcone extends StatelessWidget {
-  const PartieIcone({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: const [
-          _ActionItem(icon: Icons.phone, label: "TEL"),
-          _ActionItem(icon: Icons.email, label: "MAIL"),
-          _ActionItem(icon: Icons.share, label: "PARTAGE"),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _ActionItem({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.pink),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.pink),
-        ),
-      ],
-    );
-  }
-}
-
-// Classe PartieRubrique
-class PartieRubrique extends StatelessWidget {
-  const PartieRubrique({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/presse.png',
-              width: 150,
-              height: 100,
-              fit: BoxFit.cover,
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/mode.png',
-              width: 150,
-              height: 100,
-              fit: BoxFit.cover,
-            ),
-          ),
-        ],
       ),
     );
   }
